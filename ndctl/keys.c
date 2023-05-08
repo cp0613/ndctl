@@ -658,13 +658,16 @@ int ndctl_dimm_overwrite_key(struct ndctl_dimm *dimm)
 	int rc;
 
 	key = check_dimm_key(dimm, false, ND_USER_KEY);
-	if (key < 0)
+	if (key < 0 && key != -ENOKEY)
 		return key;
 
 	rc = run_key_op(dimm, key, ndctl_dimm_overwrite,
 			"overwrite");
 	if (rc < 0)
 		return rc;
+
+	if (key >= 0)
+		discard_key(dimm, ND_USER_KEY);
 
 	return 0;
 }
