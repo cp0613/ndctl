@@ -1,5 +1,6 @@
 project('ndctl', 'c',
   version : '82',
+  meson_version: '>= 0.56.0',
   license : [
     'GPL-2.0',
     'LGPL-2.1',
@@ -159,9 +160,9 @@ endif
 
 if get_option('systemd').enabled()
   systemd = dependency('systemd', required : true)
-  systemdunitdir = systemd.get_pkgconfig_variable('systemdsystemunitdir')
+  systemdunitdir = systemd.get_variable(pkgconfig : 'systemdsystemunitdir')
   udev = dependency('udev', required : true)
-  udevdir = udev.get_pkgconfig_variable('udevdir')
+  udevdir = udev.get_variable(pkgconfig : 'udevdir')
   udevrulesdir = udevdir / 'rules.d'
 endif
 
