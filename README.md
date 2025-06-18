@@ -85,6 +85,11 @@ loaded.  To build and install nfit_test.ko:
    CONFIG_TRANSPARENT_HUGEPAGE=y
    ```
 
+1. Install the following packages, (Fedora instructions):
+   ```
+   dnf install e2fsprogs xfsprogs parted jq trace-cmd hostname fio fio-engine-dev-dax
+   ```
+
 1. Build and install the unit test enabled libnvdimm modules in the
    following order.  The unit test modules need to be in place prior to
    the `depmod` that runs during the final `modules_install`  
