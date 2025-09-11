@@ -36,7 +36,7 @@ cleanup() {
 	for i in $namespaces
 	do
 		if ! $NDCTL destroy-namespace -f $i; then
-			echo "test/sub-section.sh: cleanup() failed to destroy $i"
+			echo "test/dm.sh: cleanup() failed to destroy $i"
 		fi
 	done
 	exit $rc
