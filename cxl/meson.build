@@ -29,6 +29,7 @@ if get_option('libtracefs').enabled()
   cxl_src += [
     '../util/event_trace.c',
     'monitor.c',
+    'json_poison.c',
   ]
   deps += [
     traceevent,

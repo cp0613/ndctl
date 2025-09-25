@@ -19,7 +19,7 @@
 /* ndctl test support */
 #mesondefine ENABLE_TEST
 
-/* cxl monitor support */
+/* cxl monitor and cxl list --media-errors support */
 #mesondefine ENABLE_LIBTRACEFS
 
 /* Define to 1 if big-endian-arch */

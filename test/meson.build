@@ -167,7 +167,6 @@ cxl_events = find_program('cxl-events.sh')
 cxl_sanitize = find_program('cxl-sanitize.sh')
 cxl_destroy_region = find_program('cxl-destroy-region.sh')
 cxl_qos_class = find_program('cxl-qos-class.sh')
-cxl_poison = find_program('cxl-poison.sh')
 
 tests = [
   [ 'libndctl',               libndctl,		  'ndctl' ],
@@ -200,7 +199,6 @@ tests = [
   [ 'cxl-sanitize.sh',        cxl_sanitize,       'cxl'   ],
   [ 'cxl-destroy-region.sh',  cxl_destroy_region, 'cxl'   ],
   [ 'cxl-qos-class.sh',       cxl_qos_class,      'cxl'   ],
-  [ 'cxl-poison.sh',          cxl_poison,         'cxl'   ],
 ]
 
 if get_option('destructive').enabled()
@@ -250,6 +248,13 @@ if get_option('fwctl').enabled()
   cxl_features = find_program('cxl-features.sh')
   tests += [
     [ 'cxl-features.sh',        cxl_features,       'cxl'   ],
+  ]
+endif
+
+if get_option('libtracefs').enabled()
+  cxl_poison = find_program('cxl-poison.sh')
+  tests += [
+    [ 'cxl-poison.sh', cxl_poison, 'cxl' ],
   ]
 endif
 

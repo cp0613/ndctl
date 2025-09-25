@@ -7,6 +7,9 @@
 #include <ccan/list/list.h>
 #include <ccan/short_types/short_types.h>
 
+#ifdef ENABLE_LIBTRACEFS
+#include <tracefs.h>
+
 struct jlist_node {
 	struct json_object *jobj;
 	struct list_node list;
@@ -39,4 +42,15 @@ u32 trace_get_field_u32(struct tep_event *event, struct tep_record *record,
 			const char *name);
 u64 trace_get_field_u64(struct tep_event *event, struct tep_record *record,
 			const char *name);
+struct json_object *util_cxl_poison_list_to_json(struct cxl_region *region,
+			struct cxl_memdev *memdev, unsigned long flags);
+#else
+struct json_object *util_cxl_poison_list_to_json(struct cxl_region *region,
+			struct cxl_memdev *memdev, unsigned long flags)
+{
+	fprintf(stderr, "cxl list --media-errors support disabled at build time\n");
+	return NULL;
+}
+#endif /* ENABLE_LIBTRACEFS */
+
 #endif
