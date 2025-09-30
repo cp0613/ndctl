@@ -1,5 +1,5 @@
 project('ndctl', 'c',
-  version : '82',
+  version : '83',
   meson_version: '>= 0.56.0',
   license : [
     'GPL-2.0',
@@ -300,16 +300,16 @@ config_h = configure_file(
 add_project_arguments('-include', 'config.h', language : 'c')
 
 LIBNDCTL_CURRENT=27
-LIBNDCTL_REVISION=4
+LIBNDCTL_REVISION=5
 LIBNDCTL_AGE=21
 
 LIBDAXCTL_CURRENT=7
 LIBDAXCTL_REVISION=1
 LIBDAXCTL_AGE=6
 
-LIBCXL_CURRENT=10
+LIBCXL_CURRENT=11
 LIBCXL_REVISION=0
-LIBCXL_AGE=9
+LIBCXL_AGE=10
 
 root_inc = include_directories(['.', 'ndctl', ])
 
