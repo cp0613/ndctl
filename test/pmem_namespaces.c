@@ -178,20 +178,24 @@ int test_pmem_namespaces(int log_level, struct ndctl_test *test,
 
 	ndctl_set_log_priority(ctx, log_level);
 
+	/* Try to use ACPI resource first, then nfit_test */
 	bus = ndctl_bus_get_by_provider(ctx, "ACPI.NFIT");
-	if (bus) {
-		/* skip this bus if no label-enabled PMEM regions */
+	if (bus)
 		ndctl_region_foreach(bus, region)
 			if (ndctl_region_get_nstype(region)
 					== ND_DEVICE_NAMESPACE_PMEM)
 				break;
-		if (!region)
-			bus = NULL;
+
+	if (!bus)
+		fprintf(stderr, "ACPI.NFIT: bus not found\n");
+	else if (!region) {
+		fprintf(stderr, "ACPI.NFIT: no PMEM region found\n");
+		bus = NULL;
 	}
 
 	if (!bus) {
 		fprintf(stderr, "ACPI.NFIT unavailable falling back to nfit_test\n");
-		rc = ndctl_test_init(&kmod_ctx, &mod, NULL, log_level, test);
+		rc = ndctl_test_init(&kmod_ctx, &mod, ctx, log_level, test);
 		ndctl_invalidate(ctx);
 		bus = ndctl_bus_get_by_provider(ctx, "nfit_test.0");
 		if (rc < 0 || !bus) {
