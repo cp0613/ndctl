@@ -195,10 +195,9 @@ test_poison_by_region_offset_negative()
 	region_size=$(cat /sys/bus/cxl/devices/"$region"/size)
 	cache_size=0
 
-	# This case is a no-op until cxl-test ELC mocking arrives
-	# Try to get cache_size if the attribute exists
-	if [ -f "/sys/bus/cxl/devices/$region/cache_size" ]; then
-		cache_size=$(cat /sys/bus/cxl/devices/"$region"/cache_size)
+	# Try to get the ELC size attribute
+	if [ -f "/sys/bus/cxl/devices/$region/extended_linear_cache_size" ]; then
+		cache_size=$(cat /sys/bus/cxl/devices/"$region"/extended_linear_cache_size)
 	fi
 
 	# Offset within extended linear cache (if cache_size > 0)
