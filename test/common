@@ -101,6 +101,18 @@ check_min_kver()
 	[[ "$ver" == "$(echo -e "$ver\n$KVER" | sort -V | head -1)" ]]
 }
 
+# check_eq_kver
+# $1: Kernel version to match. format: X.Y
+#
+check_eq_kver()
+{
+        local ver="$1"
+        : "${KVER:=$(uname -r)}"
+
+        [ -n "$ver" ] || return 1
+        [[ "$KVER" == "$ver"* ]]
+}
+
 # do_skip
 # $1: Skip message
 #

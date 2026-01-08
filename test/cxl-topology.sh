@@ -151,6 +151,57 @@ count=$(jq "map(select(.pmem_size == $pmem_size)) | length" <<< $json)
 ((bridges == 2 && count == 8 || bridges == 3 && count == 10 ||
   bridges == 4 && count == 11)) || err "$LINENO"
 
+# Test that switch port decoders have complete target list enumeration
+# Validates a fix for multiple decoders sharing the same dport.
+# Based on the cxl_test topology expectation of switch ports at depth 2
+# with 8 decoders each. Adjust if that expectation changes.
+test_switch_decoder_target_enumeration() {
+
+	# Get verbose output to see targets arrays
+	json=$($CXL list -b cxl_test -vvv)
+
+	switch_port_issues=$(jq '
+	# Find all switch ports (depth 2)
+	[.. | objects | select(.depth == 2 and has("decoders:" + .port))] |
+
+	# For each switch port, analyze its decoder target pattern
+	map({
+		port: .port,
+		nr_dports: .nr_dports,
+
+		# Count non-endpoint decoders (no "mode" field)
+		total: ([to_entries[] | select(.key | startswith("decoders:"))
+			| .value[] | select(has("mode") == false)] |
+			length),
+
+		# Count how many have targets
+		with_targets: ([to_entries[] | select(.key |
+			startswith("decoders:")) | .value[] |
+			select(has("mode") == false and .nr_targets > 0)] |
+			length),
+
+		# Count how many explicitly have no targets
+		without_targets: ([to_entries[] | select(.key |
+			startswith("decoders:")) | .value[] |
+			select(has("mode") == false and .nr_targets == 0)] |
+			length)
+		}) |
+
+		# Filter for the expected pattern and count them
+		map(select(.nr_dports > 0 and
+			   .with_targets == 1 and
+			   .without_targets >= 7)) |
+			   length
+	' <<<"$json")
+
+	((switch_port_issues == 0)) || {
+		echo "Found $switch_port_issues switch ports with incomplete target enumeration"
+		echo "Only 1 decoder has targets while 7+ have nr_targets=0"
+		err "$LINENO"
+	}
+}
+# Skip the target enumeration test where known broken
+check_eq_kver 6.18 || test_switch_decoder_target_enumeration
 
 # check that switch ports disappear after all of their memdevs have been
 # disabled, and return when the memdevs are enabled.
