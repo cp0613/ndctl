@@ -72,30 +72,32 @@ clear_poison_sysfs()
 check_trace_entry()
 {
 	local expected_region="$1"
-	local expected_hpa="$2"
+	local expected_hpa="$2"		# hex or decimal
+	local expected_memdev="$3"	# optional
+	local expected_dpa="$4"		# optional, hex or decimal
+	local trace_line trace_region trace_memdev trace_hpa trace_dpa
 
-	local trace_line
-	trace_line=$(grep "cxl_poison" /sys/kernel/tracing/trace | tail -n 1)
-	if [[ -z "$trace_line" ]]; then
-		echo "No cxl_poison trace event found"
-		err "$LINENO"
-	fi
+	trace_line=$(tail -n 1 /sys/kernel/tracing/trace | grep "cxl_poison")
+	 [[ -n "$trace_line" ]] || err "$LINENO"
 
-	local trace_region trace_hpa
 	trace_region=$(echo "$trace_line" | grep -o 'region=[^ ]*' | cut -d= -f2)
-	trace_hpa=$(echo "$trace_line" | grep -o 'hpa=0x[0-9a-fA-F]\+' | cut -d= -f2)
+	trace_memdev=$(echo "$trace_line" | grep -o 'memdev=[^ ]*' | cut -d= -f2)
 
-	if [[ "$trace_region" != "$expected_region" ]]; then
-		echo "Expected region $expected_region not found in trace"
-		echo "$trace_line"
-		err "$LINENO"
-	fi
+	# Convert HPA and DPA from hex to decimal
+        trace_hpa=$(($(echo "$trace_line" | grep -o 'hpa=0x[0-9a-fA-F]\+' | cut -d= -f2)))
+        trace_dpa=$(($(echo "$trace_line" | grep -o 'dpa=0x[0-9a-fA-F]\+' | cut -d= -f2)))
 
-	if [[ "$trace_hpa" != "$expected_hpa" ]]; then
-		echo "Expected HPA $expected_hpa not found in trace"
-		echo "$trace_line"
-		err "$LINENO"
-	fi
+	# Convert expected values to decimal
+	expected_hpa=$((expected_hpa))
+	[[ -n "$expected_dpa" ]] && expected_dpa=$((expected_dpa))
+
+	# Required checks
+	[[ "$trace_region" == "$expected_region" ]] || err "$LINENO"
+	[[ "$trace_hpa" == "$expected_hpa" ]] || err "$LINENO"
+
+	# Optional checks only enforced if expected value is provided
+	[[ -z "$expected_memdev" || "$trace_memdev" == "$expected_memdev" ]] || err "$LINENO"
+	[[ -z "$expected_dpa" || "$trace_dpa" == "$expected_dpa" ]] || err "$LINENO"
 }
 
 validate_poison_found()
@@ -211,6 +213,105 @@ test_poison_by_region_offset_negative()
 	clear_poison_sysfs "$region" "$large_offset" true
 }
 
+is_unaligned() {
+	local region=$1
+	local hbiw=$2
+	local align addr
+	local unit=$((256 * 1024 * 1024))	# 256MB
+
+	# Unaligned regions resources start at addresses that are
+	# not aligned to Host Bridge Interleave Ways * 256MB.
+
+	[[ -n "$region" && -n "$hbiw" ]] || err "$LINENO"
+	addr="$($CXL list -r "$region" | jq -r '.[0].resource')"
+	[[ -n "$addr" && "$addr" != "null" ]] || err "$LINENO"
+
+	align=$((hbiw * unit))
+	((addr % align != 0))
+}
+
+create_3way_interleave_region()
+{
+	# find an x3 decoder
+	decoder=$($CXL list -b cxl_test -D -d root | jq -r ".[] |
+		select(.pmem_capable == true) |
+		select(.nr_targets == 3) |
+		.decoder")
+	[[ $decoder ]] || err "$LINENO"
+
+	# Find a memdev for each host-bridge interleave position
+	port_dev0=$($CXL list -T -d "$decoder" | jq -r ".[] |
+		.targets | .[] | select(.position == 0) | .target")
+	port_dev1=$($CXL list -T -d "$decoder" | jq -r ".[] |
+		.targets | .[] | select(.position == 1) | .target")
+	port_dev2=$($CXL list -T -d "$decoder" | jq -r ".[] |
+		.targets | .[] | select(.position == 2) | .target")
+	mem0=$($CXL list -M -p "$port_dev0" | jq -r ".[0].memdev")
+	mem1=$($CXL list -M -p "$port_dev1" | jq -r ".[0].memdev")
+	mem2=$($CXL list -M -p "$port_dev2" | jq -r ".[0].memdev")
+	memdevs="$mem0 $mem1 $mem2"
+
+	region=$($CXL create-region -d "$decoder" -m "$memdevs" |
+		jq -r ".region")
+	[[ $region ]] || err "$LINENO"
+}
+
+verify_offset_translation()
+{
+    local region="$1"
+    local region_resource="$2"
+
+	# Verify that clearing by region offset maps to the same memdev/DPA
+	# as a previous clear by memdev/DPA
+
+	# Extract HPA, DPA, and memdev from the previous clear trace event
+	local trace_line memdev hpa dpa
+	trace_line=$(tail -n 1 /sys/kernel/tracing/trace | grep "cxl_poison")
+	[[ -n "$trace_line" ]] || err "$LINENO"
+
+	memdev=$(echo "$trace_line" | grep -o 'memdev=[^ ]*' | cut -d= -f2)
+	# Convert HPA and DPA to decimal
+	hpa=$(($(echo "$trace_line" | grep -o 'hpa=0x[0-9a-fA-F]\+' |cut -d= -f2)))
+	dpa=$(($(echo "$trace_line" | grep -o 'dpa=0x[0-9a-fA-F]\+' | cut -d= -f2)))
+	[[ -n "$memdev" && -n "$hpa" && -n "$dpa" ]] || err "$LINENO"
+
+	# Issue a clear poison using the found region offset
+	local region_offset=$((hpa - region_resource))
+	clear_poison_sysfs "$region" "$region_offset"
+
+	# Verify the trace event produces the same memdev/DPA for region HPA
+	check_trace_entry "$region" "$hpa" "$memdev" "$dpa"
+}
+
+run_unaligned_poison_test()
+{
+	create_3way_interleave_region
+	is_unaligned "$region" 3 ||
+		do_skip "unaligned region not available for testing"
+
+	# Get region start address and interleave granularity
+	read -r region_resource region_gran <<< "$($CXL list -r "$region" |
+		jq -r '.[0] | "\(.resource) \(.interleave_granularity)"')"
+
+	# Loop over the 3 memdevs in the region
+	for pos in 0 1 2; do
+		# Get memdev and decoder
+		memdev=$($CXL list -r "$region" --targets |
+			jq -r ".[0].mappings[$pos].memdev")
+		decoder=$($CXL list -r "$region" --targets |
+			jq -r ".[0].mappings[$pos].decoder")
+
+		# Get decoder DPA start
+		base_dpa=$($CXL list -d "$decoder" | jq -r '.[0].dpa_resource')
+
+		# Two samples: base and base + interleave granularity
+		for offset in 0 "$region_gran"; do
+			clear_poison_sysfs "$memdev" $((base_dpa + offset))
+			verify_offset_translation "$region" "$region_resource"
+		done
+	done
+}
+
 run_poison_test()
 {
 	# Clear old trace events, enable cxl_poison, enable global tracing
@@ -242,6 +343,16 @@ if check_min_kver "6.19"; then
 
 	rc=1
 	run_poison_test
+fi
+
+# Unaligned address translation first appears in the CXL driver in 7.0
+if check_min_kver "7.0"; then
+	modprobe -r cxl_test
+	# HBIW of 3 happens to only be available w XOR at the moment
+	modprobe cxl_test interleave_arithmetic=1
+
+	rc=1
+	run_unaligned_poison_test
 fi
 
 check_dmesg "$LINENO"
