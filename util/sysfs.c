@@ -21,18 +21,19 @@
 int __sysfs_read_attr(struct log_ctx *ctx, const char *path, char *buf)
 {
 	int fd = open(path, O_RDONLY|O_CLOEXEC);
-	int n;
+	int n, rc;
 
 	if (fd < 0) {
 		log_dbg(ctx, "failed to open %s: %s\n", path, strerror(errno));
 		return -errno;
 	}
 	n = read(fd, buf, SYSFS_ATTR_SIZE);
+	rc = -errno;
 	close(fd);
 	if (n < 0 || n >= SYSFS_ATTR_SIZE) {
 		buf[0] = 0;
-		log_dbg(ctx, "failed to read %s: %s\n", path, strerror(errno));
-		return -errno;
+		log_dbg(ctx, "failed to read %s: %s\n", path, strerror(-rc));
+		return rc;
 	}
 	buf[n] = 0;
 	if (n && buf[n-1] == '\n')
@@ -57,7 +58,7 @@ static int write_attr(struct log_ctx *ctx, const char *path,
 	if (n < len) {
 		if (!quiet)
 			log_dbg(ctx, "failed to write %s to %s: %s\n", buf, path,
-					strerror(errno));
+					strerror(-rc));
 		return rc;
 	}
 	return 0;
