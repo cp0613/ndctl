@@ -362,11 +362,11 @@ static const char *parse_device_options(int argc, const char **argv,
 	};
 	unsigned long long units = 1;
 	int i, rc = 0;
-	char *device = NULL;
+	const char *device = NULL;
 
 	argc = parse_options(argc, argv, options, u, 0);
 	if (argc > 0)
-		device = basename(argv[0]);
+		device = path_basename(argv[0]);
 
 	/* Handle action-agnostic non-option arguments */
 	if (argc == 0 &&

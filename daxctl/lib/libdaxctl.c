@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <errno.h>
 #include <limits.h>
-#include <libgen.h>
 #include <stdlib.h>
 #include <dirent.h>
 #include <unistd.h>
@@ -15,6 +14,7 @@
 #include <ccan/array_size/array_size.h>
 
 #include <util/log.h>
+#include <util/util.h>
 #include <util/sysfs.h>
 #include <util/iomem.h>
 #include <daxctl/libdaxctl.h>
@@ -389,7 +389,8 @@ DAXCTL_EXPORT int daxctl_dev_is_system_ram_capable(struct daxctl_dev *dev)
 {
 	const char *devname = daxctl_dev_get_devname(dev);
 	struct daxctl_ctx *ctx = daxctl_dev_get_ctx(dev);
-	char *mod_path, *mod_base;
+	const char *mod_base;
+	char *mod_path;
 	char path[200];
 	const int len = sizeof(path);
 
@@ -408,7 +409,7 @@ DAXCTL_EXPORT int daxctl_dev_is_system_ram_capable(struct daxctl_dev *dev)
 	if (!mod_path)
 		return false;
 
-	mod_base = basename(mod_path);
+	mod_base = path_basename(mod_path);
 	if (strcmp(mod_base, dax_modules[DAXCTL_DEV_MODE_RAM]) == 0) {
 		free(mod_path);
 		return true;

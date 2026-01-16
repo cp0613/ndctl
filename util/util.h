@@ -93,6 +93,21 @@ static inline int is_absolute_path(const char *path)
 	return path[0] == '/';
 }
 
+/*
+ * path_basename() is a basename() style helper for paths that may not
+ * contain a '/'. Unlike devpath_to_devname() in util/sysfs.h, which
+ * assumes a valid sysfs-style path and requires at least one '/', this
+ * helper can return the full string when no path separator is present.
+ * It avoids libc-specific basename() behavior and is safe for argv style
+ * inputs.
+ */
+static inline const char *path_basename(const char *path)
+{
+	const char *p = strrchr(path, '/');
+
+	return p ? p + 1 : path;
+}
+
 void usage(const char *err) NORETURN;
 void die(const char *err, ...) NORETURN __attribute__((format (printf, 1, 2)));
 int error(const char *err, ...) __attribute__((format (printf, 1, 2)));
