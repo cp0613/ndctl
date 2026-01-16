@@ -24,7 +24,14 @@ int __sysfs_read_attr(struct log_ctx *ctx, const char *path, char *buf)
 	int n, rc;
 
 	if (fd < 0) {
-		log_dbg(ctx, "failed to open %s: %s\n", path, strerror(errno));
+		if (errno == EACCES || errno == EPERM)
+			log_err(ctx, "failed to open %s: %s "
+				"hint: try running as root or using sudo\n",
+				path, strerror(errno));
+		else
+			log_dbg(ctx, "failed to open %s: %s\n",
+				path, strerror(errno));
+
 		return -errno;
 	}
 	n = read(fd, buf, SYSFS_ATTR_SIZE);
@@ -49,16 +56,30 @@ static int write_attr(struct log_ctx *ctx, const char *path,
 
 	if (fd < 0) {
 		rc = -errno;
-		log_dbg(ctx, "failed to open %s: %s\n", path, strerror(errno));
+		if (errno == EACCES || errno == EPERM)
+			log_err(ctx, "failed to open %s: %s "
+				"hint: try running as root or using sudo\n",
+				path, strerror(errno));
+		else
+			log_dbg(ctx, "failed to open %s: %s\n",
+				path, strerror(errno));
 		return rc;
 	}
 	n = write(fd, buf, len);
 	rc = -errno;
 	close(fd);
 	if (n < len) {
-		if (!quiet)
-			log_dbg(ctx, "failed to write %s to %s: %s\n", buf, path,
-					strerror(-rc));
+		if (quiet)
+			return rc;
+
+		if (rc == -EACCES || rc == -EPERM)
+			log_err(ctx, "failed to write %s to %s: %s "
+				"hint: try running as root or using sudo\n",
+				buf, path, strerror(-rc));
+		else
+			log_dbg(ctx, "failed to write %s to %s: %s\n",
+				buf, path, strerror(-rc));
+
 		return rc;
 	}
 	return 0;
