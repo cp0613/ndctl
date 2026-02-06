@@ -3591,7 +3591,6 @@ CXL_EXPORT int cxl_dport_protocol_error_inject(struct cxl_dport *dport,
 
 	rc = access(path, F_OK);
 	if (rc) {
-		err(ctx, "failed to access %s: %s\n", path, strerror(errno));
 		free(path);
 		return -errno;
 	}
@@ -5042,4 +5041,87 @@ cxl_alert_config_set_field(enable_alert_actions)
 CXL_EXPORT struct cxl_cmd *cxl_cmd_new_set_alert_config(struct cxl_memdev *memdev)
 {
 	return cxl_cmd_new_generic(memdev, CXL_MEM_COMMAND_ID_SET_ALERT_CONFIG);
+}
+
+CXL_EXPORT bool cxl_memdev_has_poison_support(struct cxl_memdev *memdev,
+					      bool inj)
+{
+	struct cxl_ctx *ctx = memdev->ctx;
+	bool exists = false;
+	size_t len;
+	char *path;
+
+	if (!ctx->cxl_debugfs)
+		return false;
+
+	path = calloc(PATH_MAX, sizeof(char));
+	if (!path)
+		return false;
+
+	len = snprintf(path, PATH_MAX, "%s/%s/%s", ctx->cxl_debugfs,
+		       cxl_memdev_get_devname(memdev),
+		       inj ? "inject_poison" : "clear_poison");
+	if (len >= PATH_MAX) {
+		err(ctx, "%s: buffer too small\n",
+		    cxl_memdev_get_devname(memdev));
+		goto out;
+	}
+
+	if (!access(path, F_OK))
+		exists = true;
+
+out:
+	free(path);
+	return exists;
+}
+
+static int cxl_memdev_poison_action(struct cxl_memdev *memdev, size_t dpa,
+				    bool clear)
+{
+	struct cxl_ctx *ctx = memdev->ctx;
+	char addr[32];
+	size_t len;
+	char *path;
+	int rc;
+
+	if (!ctx->cxl_debugfs)
+		return -ENOENT;
+
+	path = calloc(PATH_MAX, sizeof(char));
+	if (!path)
+		return -ENOMEM;
+
+	len = snprintf(path, PATH_MAX, "%s/%s/%s", ctx->cxl_debugfs,
+		       cxl_memdev_get_devname(memdev),
+		       clear ? "clear_poison" : "inject_poison");
+	if (len >= PATH_MAX) {
+		err(ctx, "%s: buffer too small\n",
+		    cxl_memdev_get_devname(memdev));
+		rc = -ENOMEM;
+		goto out;
+	}
+
+	len = snprintf(addr, sizeof(addr), "0x%lx\n", dpa);
+	if (len >= sizeof(addr)) {
+		err(ctx, "%s: buffer too small\n",
+		    cxl_memdev_get_devname(memdev));
+		rc = -ENOMEM;
+		goto out;
+	}
+
+	rc = sysfs_write_attr(ctx, path, addr);
+
+out:
+	free(path);
+	return rc;
+}
+
+CXL_EXPORT int cxl_memdev_inject_poison(struct cxl_memdev *memdev, size_t addr)
+{
+	return cxl_memdev_poison_action(memdev, addr, false);
+}
+
+CXL_EXPORT int cxl_memdev_clear_poison(struct cxl_memdev *memdev, size_t addr)
+{
+	return cxl_memdev_poison_action(memdev, addr, true);
 }
