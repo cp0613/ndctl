@@ -304,4 +304,9 @@ global:
 LIBCXL_11 {
 global:
 	cxl_region_get_extended_linear_cache_size;
+	cxl_protocol_error_get_first;
+	cxl_protocol_error_get_next;
+	cxl_protocol_error_get_num;
+	cxl_protocol_error_get_str;
+	cxl_dport_protocol_error_inject;
 } LIBCXL_10;
