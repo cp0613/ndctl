@@ -663,6 +663,12 @@ struct json_object *util_cxl_memdev_to_json(struct cxl_memdev *memdev,
 			json_object_object_add(jdev, "state", jobj);
 	}
 
+	if (cxl_debugfs_exists(cxl_memdev_get_ctx(memdev))) {
+		jobj = json_object_new_boolean(cxl_memdev_has_poison_support(memdev, true));
+		if (jobj)
+			json_object_object_add(jdev, "poison_injectable", jobj);
+	}
+
 	if (flags & UTIL_JSON_PARTITION) {
 		jobj = util_cxl_memdev_partition_to_json(memdev, flags);
 		if (jobj)
@@ -691,6 +697,7 @@ void util_cxl_dports_append_json(struct json_object *jport,
 {
 	struct json_object *jobj, *jdports;
 	struct cxl_dport *dport;
+	char *einj_path;
 	int val;
 
 	val = cxl_port_get_nr_dports(port);
@@ -739,6 +746,13 @@ void util_cxl_dports_append_json(struct json_object *jport,
 		if (jobj)
 			json_object_object_add(jdport, "id", jobj);
 
+		einj_path = cxl_dport_get_einj_path(dport);
+		jobj = json_object_new_boolean(einj_path != NULL);
+		if (jobj)
+			json_object_object_add(jdport, "protocol_injectable",
+					       jobj);
+		free(einj_path);
+
 		json_object_array_add(jdports, jdport);
 		json_object_set_userdata(jdport, dport, NULL);
 	}
@@ -750,6 +764,8 @@ struct json_object *util_cxl_bus_to_json(struct cxl_bus *bus,
 					 unsigned long flags)
 {
 	const char *devname = cxl_bus_get_devname(bus);
+	struct cxl_ctx *ctx = cxl_bus_get_ctx(bus);
+	struct cxl_protocol_error *perror;
 	struct json_object *jbus, *jobj;
 
 	jbus = json_object_new_object();
@@ -765,6 +781,28 @@ struct json_object *util_cxl_bus_to_json(struct cxl_bus *bus,
 		json_object_object_add(jbus, "provider", jobj);
 
 	json_object_set_userdata(jbus, bus, NULL);
+
+	if (cxl_debugfs_exists(ctx)) {
+		jobj = json_object_new_array();
+		if (!jobj)
+			return jbus;
+
+		cxl_protocol_error_foreach(ctx, perror)
+		{
+			struct json_object *jerr_str;
+			const char *perror_str;
+
+			perror_str = cxl_protocol_error_get_str(perror);
+
+			jerr_str = json_object_new_string(perror_str);
+			if (jerr_str)
+				json_object_array_add(jobj, jerr_str);
+		}
+
+		json_object_object_add(jbus, "injectable_protocol_errors",
+				       jobj);
+	}
+
 	return jbus;
 }
 

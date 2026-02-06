@@ -285,6 +285,11 @@ static char* get_cxl_debugfs_dir(void)
 	return debugfs_dir;
 }
 
+CXL_EXPORT bool cxl_debugfs_exists(struct cxl_ctx *ctx)
+{
+	return ctx->cxl_debugfs != NULL;
+}
+
 /**
  * cxl_new - instantiate a new library context
  * @ctx: context to establish
@@ -3564,36 +3569,47 @@ cxl_protocol_error_get_str(struct cxl_protocol_error *perror)
 	return perror->string;
 }
 
-CXL_EXPORT int cxl_dport_protocol_error_inject(struct cxl_dport *dport,
-					       unsigned int error)
+CXL_EXPORT char *cxl_dport_get_einj_path(struct cxl_dport *dport)
 {
 	struct cxl_ctx *ctx = dport->port->ctx;
-	char buf[32] = { 0 };
 	size_t path_len, len;
 	char *path;
 	int rc;
 
-	if (!ctx->cxl_debugfs)
-		return -ENOENT;
-
 	path_len = strlen(ctx->cxl_debugfs) + 100;
 	path = calloc(path_len, sizeof(char));
 	if (!path)
-		return -ENOMEM;
+		return NULL;
 
 	len = snprintf(path, path_len, "%s/%s/einj_inject", ctx->cxl_debugfs,
 		      cxl_dport_get_devname(dport));
 	if (len >= path_len) {
 		err(ctx, "%s: buffer too small\n", cxl_dport_get_devname(dport));
 		free(path);
-		return -ENOMEM;
+		return NULL;
 	}
 
 	rc = access(path, F_OK);
 	if (rc) {
 		free(path);
-		return -errno;
+		return NULL;
 	}
+
+	return path;
+}
+
+CXL_EXPORT int cxl_dport_protocol_error_inject(struct cxl_dport *dport,
+					       unsigned int error)
+{
+	struct cxl_ctx *ctx = dport->port->ctx;
+	char buf[32] = { 0 };
+	char *path;
+	size_t len;
+	int rc;
+
+	path = cxl_dport_get_einj_path(dport);
+	if (!path)
+		return -ENOENT;
 
 	len = snprintf(buf, sizeof(buf), "0x%x\n", error);
 	if (len >= sizeof(buf)) {

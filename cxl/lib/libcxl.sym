@@ -308,8 +308,10 @@ global:
 	cxl_protocol_error_get_next;
 	cxl_protocol_error_get_num;
 	cxl_protocol_error_get_str;
+	cxl_dport_get_einj_path;
 	cxl_dport_protocol_error_inject;
 	cxl_memdev_has_poison_support;
 	cxl_memdev_inject_poison;
 	cxl_memdev_clear_poison;
+	cxl_debugfs_exists;
 } LIBCXL_10;

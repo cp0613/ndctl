@@ -32,6 +32,7 @@ void cxl_set_userdata(struct cxl_ctx *ctx, void *userdata);
 void *cxl_get_userdata(struct cxl_ctx *ctx);
 void cxl_set_private_data(struct cxl_ctx *ctx, void *data);
 void *cxl_get_private_data(struct cxl_ctx *ctx);
+bool cxl_debugfs_exists(struct cxl_ctx *ctx);
 
 enum cxl_fwl_status {
 	CXL_FWL_STATUS_UNKNOWN,
@@ -507,6 +508,7 @@ struct cxl_protocol_error *
 cxl_protocol_error_get_next(struct cxl_protocol_error *perror);
 unsigned int cxl_protocol_error_get_num(struct cxl_protocol_error *perror);
 const char *cxl_protocol_error_get_str(struct cxl_protocol_error *perror);
+char *cxl_dport_get_einj_path(struct cxl_dport *dport);
 int cxl_dport_protocol_error_inject(struct cxl_dport *dport,
 				    unsigned int error);
 
